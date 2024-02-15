@@ -8,12 +8,8 @@ from flask import Flask, request, jsonify
 from slack_bolt.adapter.flask import SlackRequestHandler
 
 # dependencies for RAG
-from llama_index import VectorStoreIndex, StorageContext, ServiceContext
+from llama_index import VectorStoreIndex, StorageContext
 from llama_index.vector_stores import AstraDBVectorStore
-from llama_index.llms import OpenAI
-from llama_index.prompts import PromptTemplate
-from langchain.embeddings.base import Embeddings
-from langchain.embeddings import OpenAIEmbeddings, VertexAIEmbeddings
 
 # initialise vector store with Astra DB
 vector_store = AstraDBVectorStore(
