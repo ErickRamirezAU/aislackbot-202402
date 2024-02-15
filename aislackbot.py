@@ -1,9 +1,31 @@
+# load creds/keys from env
 import dotenv, os
 dotenv.load_dotenv()
 
+# dependencies for slack
 from slack_bolt import App
 from flask import Flask, request, jsonify
 from slack_bolt.adapter.flask import SlackRequestHandler
+
+# dependencies for RAG
+from llama_index import VectorStoreIndex, StorageContext, ServiceContext
+from llama_index.vector_stores import AstraDBVectorStore
+from llama_index.llms import OpenAI
+from llama_index.prompts import PromptTemplate
+from langchain.embeddings.base import Embeddings
+from langchain.embeddings import OpenAIEmbeddings, VertexAIEmbeddings
+
+# initialise vector store with Astra DB
+vector_store = AstraDBVectorStore(
+    token=os.environ.get("ASTRA_DB_APPLICATION_TOKEN"),
+    api_endpoint=os.environ.get("ASTRA_DB_API_ENDPOINT"),
+    collection_name=os.environ.get("ASTRA_DB_TABLE_NAME"),
+    embedding_dimension=1536,
+)
+storage_context = StorageContext.from_defaults(vector_store=vector_store)
+index = VectorStoreIndex.from_vector_store(
+    vector_store=vector_store, storage_context=storage_context
+)
 
 # Initialize Bolt app with token and secret
 app = App(
@@ -11,7 +33,6 @@ app = App(
     signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
 )
 handler = SlackRequestHandler(app)
-
 flask_app = Flask(__name__)
 
 # join the #bot-testing channel so we can listen to messages
@@ -24,7 +45,6 @@ print(f"Found the channel {channel_id} and joined it")
 # get the bot's own user ID so it can tell when somebody is mentioning it
 auth_response = app.client.auth_test()
 bot_user_id = auth_response["user_id"]
-
 
 # this is the challenge route required by Slack
 # if it's not the challenge it's something for Bolt to handle
@@ -64,8 +84,9 @@ def reply(message, say):
                             for element in rich_text_section.get('elements'):
                                 if element.get('type') == 'text':
                                     query = element.get('text')
-                                    print(f"Somebody asked the bot: {query}")
-                                    say("Yes?")
+                                    query_engine = index.as_query_engine()
+                                    response = query_engine.query(query)
+                                    say(str(response))
                                     return
     # otherwise do something else with it
     print("Saw a fact: ", message.get('text'))
